@@ -2,3 +2,5 @@
 /*.exe
 /*.rdi
 /*.pdb
+*.bin
+*.csv

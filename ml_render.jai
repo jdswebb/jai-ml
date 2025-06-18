@@ -6,72 +6,72 @@ InstanceVertex :: struct {
     colour : Vector3;
 }
 
-neuron_instance_data: [layer_0_size + layer_1_size + layer_2_size + layer_3_size] InstanceVertex;
-wire_instance_data: [2 * (layer_0_weights.count + layer_1_weights.count + layer_2_weights.count)] InstanceVertex;
+neuron_spacing :: 1.5;
+neuron_vertex_instances: [..] InstanceVertex;
+wire_vertex_data: [..] InstanceVertex;
+
+layout_square_layer :: (max_width: float, layer_idx: u32, offset: u32, z: float) -> u32
+{
+    dim: u32 = xx sqrt(xx layer_sz[layer_idx]);
+    assert((dim * dim) == layer_sz[layer_idx]);
+    padding := 0.5 * (max_width - ((dim - 1) * neuron_spacing));
+    for i : 0..(dim-1) {
+        for j : 0..(dim-1) {
+            neuron_vertex_instances[offset + (i * dim) + j].offset.x = xx padding + (i * neuron_spacing);
+            neuron_vertex_instances[offset + (i * dim) + j].offset.y = xx padding + (j * neuron_spacing);
+            neuron_vertex_instances[offset + (i * dim) + j].offset.z = z;
+        }
+    }
+    return layer_sz[layer_idx];
+}
+
+layout_linear_layer :: (max_width: float, layer_idx: u32, offset: u32, z: float) -> u32
+{
+    padding_x := 0.5 * (max_width - ((layer_sz[layer_idx] - 1) * neuron_spacing));
+    padding_y := 0.5 * (max_width - neuron_spacing);
+    for i : 0..(layer_sz[layer_idx]-1) {
+        neuron_vertex_instances[offset + i].offset.x = xx padding_x + (i * neuron_spacing);
+        neuron_vertex_instances[offset + i].offset.y = xx padding_y;
+        neuron_vertex_instances[offset + i].offset.z = z;
+    }
+    return layer_sz[layer_idx];
+}
 
 init_instance_positions :: ()
-{    
-    spacing :: 1.5;
-    max_width :: (layer_0_dim - 1) * spacing;
-    layer_1_padding :: 0.5 * (max_width - ((layer_1_dim - 1) * spacing));
-    layer_2_padding :: 0.5 * (max_width - ((layer_2_dim - 1) * spacing));
-    layer_3_padding_x :: 0.5 * (max_width - ((layer_3_size - 1) * spacing));
-    layer_3_padding_y :: 0.5 * (max_width - spacing);
-    for i : 0..(layer_0_dim-1) {
-        for j : 0..(layer_0_dim-1) {
-            neuron_instance_data[(i * layer_0_dim) + j].offset.x = xx (i * spacing);
-            neuron_instance_data[(i * layer_0_dim) + j].offset.y = xx (j * spacing);
-            neuron_instance_data[(i * layer_0_dim) + j].offset.z = 0;
-        }
+{
+    neuron_count: u32 = 0;
+    for i:0..layer_sz.count-1 {
+        neuron_count += layer_sz[i];
     }
-    offset := layer_0_size;
-    for i : 0..(layer_1_dim-1) {
-        for j : 0..(layer_1_dim-1) {
-            neuron_instance_data[offset + (i * layer_1_dim) + j].offset.x = xx layer_1_padding + (i * spacing);
-            neuron_instance_data[offset + (i * layer_1_dim) + j].offset.y = xx layer_1_padding + (j * spacing);
-            neuron_instance_data[offset + (i * layer_1_dim) + j].offset.z = 25;
-        }
-    }
-    offset += layer_1_size;
-    for i : 0..(layer_2_dim-1) {
-        for j : 0..(layer_2_dim-1) {
-            neuron_instance_data[offset + (i * layer_2_dim) + j].offset.x = xx layer_2_padding + (i * spacing);
-            neuron_instance_data[offset + (i * layer_2_dim) + j].offset.y = xx layer_2_padding + (j * spacing);
-            neuron_instance_data[offset + (i * layer_2_dim) + j].offset.z = 40;
-        }
-    }
-    offset += layer_2_size;
-    for i : 0..(layer_3_size-1) {
-            neuron_instance_data[offset + i].offset.x = xx layer_3_padding_x + (i * spacing);
-            neuron_instance_data[offset + i].offset.y = layer_3_padding_y;
-            neuron_instance_data[offset + i].offset.z = 60;
-    }    
-    offset += layer_3_size;
-    for i : 0..(layer_3_size-1) {
+    array_resize(*neuron_vertex_instances, neuron_count);
+    print("Total neurons: %\n", neuron_count);
 
+    wire_vertex_count: u32 = 0;
+    for i:0..layer_sz.count-2 {
+        wire_vertex_count += layer_sz[i] * layer_sz[i + 1];
     }
+    print("Total wires: %\n", wire_vertex_count);
+    wire_vertex_count *= 2;
+    array_resize(*wire_vertex_data, wire_vertex_count);
 
-    offset = 0;
-    for i : 0..(layer_0_size-1) {
-        for k : 0..(layer_1_size-1) {
-            wire_instance_data[offset].offset = neuron_instance_data[i].offset;
-            wire_instance_data[offset + 1].offset = neuron_instance_data[layer_0_size + k].offset;
-            offset += 2;
+    max_width :: (image_sz - 1) * neuron_spacing;
+    offset: u32 = 0;
+    offset += layout_square_layer(max_width, 0, offset, 0);
+    offset += layout_square_layer(max_width, 1, offset, 25);
+    offset += layout_square_layer(max_width, 2, offset, 40);
+    offset += layout_linear_layer(max_width, 3, offset, 60);
+
+    dst_offset := 0;
+    src_offset := 0;
+    for n:0..layer_sz.count-2 {
+        for i : 0..(layer_sz[n] - 1) {
+            for j : 0..(layer_sz[n + 1]-1) {
+                wire_vertex_data[dst_offset].offset = neuron_vertex_instances[src_offset + i].offset;
+                wire_vertex_data[dst_offset + 1].offset = neuron_vertex_instances[src_offset + layer_sz[n] + j].offset;
+                dst_offset += 2;
+            }
         }
-    }
-    for i : 0..(layer_1_size-1) {
-        for k : 0..(layer_2_size-1) {
-            wire_instance_data[offset].offset = neuron_instance_data[layer_0_size + i].offset;
-            wire_instance_data[offset + 1].offset = neuron_instance_data[layer_0_size + layer_1_size + k].offset;
-            offset += 2;
-        }
-    }
-    for i : 0..(layer_2_size-1) {
-        for k : 0..(layer_3_size-1) {
-            wire_instance_data[offset].offset = neuron_instance_data[layer_0_size + layer_1_size + i].offset;
-            wire_instance_data[offset + 1].offset = neuron_instance_data[layer_0_size + layer_1_size + layer_2_size + k].offset;
-            offset += 2;
-        }
+        src_offset += layer_sz[n];
     }
 }
 

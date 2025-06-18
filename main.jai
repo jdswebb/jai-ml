@@ -232,7 +232,7 @@ init_device :: () -> bool {
         layout[2].InputSlotClass = .INSTANCE_DATA;
         layout[2].InstanceDataStepRate = 1;
         
-        compile_shader(neuron_shader_source, "vs_instanced", "ps",
+        compile_shader(neuron_shader_source, "vs_instanced", "ps_instanced",
             *g_vs_instanced, *g_ps_instanced, layout, *g_il_instanced);
     }
     {
@@ -355,28 +355,8 @@ update_neuron_buffers :: () {
     }
 
     ib_data : *InstanceVertex = mapped.pData;
-    for _, i : neuron_instance_data {
-        ib_data[i].offset = neuron_instance_data[i].offset;
-    }
-    for i : 0..(layer_0_dim-1) {
-        for j : 0..(layer_0_dim-1) {
-            ib_data[(i * layer_0_dim) + j].colour.x = layer_0_weights[(i * layer_0_dim) + j];
-        }
-    }
-    offset : u32 = layer_0_size;
-    for i : 0..(layer_1_dim-1) {
-        for j : 0..(layer_1_dim-1) {
-            ib_data[offset + (i * layer_1_dim) + j].colour.x = layer_1_weights[(i * layer_1_dim) + j];
-        }
-    }
-    offset += layer_1_size;
-    for i : 0..(layer_2_dim-1) {
-        for j : 0..(layer_2_dim-1) {
-            ib_data[offset + (i * layer_2_dim) + j].colour.x = layer_2_weights[(i * layer_2_dim) + j];
-        }
-    }
-    offset += layer_2_size;
-    for i : 0..(layer_3_size-1) {
+    for _, i : neuron_vertex_instances {
+        ib_data[i].offset = neuron_vertex_instances[i].offset;
     }
     ID3D11DeviceContext_Unmap(g_ctx, g_vb_neuron_inst, 0);    
 }
@@ -389,8 +369,8 @@ update_wire_buffers :: () {
     }
 
     ib_data : *InstanceVertex = mapped.pData;
-    for _, i : wire_instance_data {
-        ib_data[i].offset = wire_instance_data[i].offset;
+    for _, i : wire_vertex_data {
+        ib_data[i].offset = wire_vertex_data[i].offset;
     }
     ID3D11DeviceContext_Unmap(g_ctx, g_vb_wire_inst, 0);
 }
@@ -419,7 +399,7 @@ render :: () {
     stride = size_of(InstanceVertex);
     ID3D11DeviceContext_IASetVertexBuffers(g_ctx, 1, 1, *g_vb_neuron_inst, *stride, *offset);
     ID3D11DeviceContext_IASetPrimitiveTopology(g_ctx, D3D11_PRIMITIVE_TOPOLOGY.TRIANGLELIST);
-    ID3D11DeviceContext_DrawInstanced(g_ctx, 36, layer_0_size + layer_1_size + layer_2_size + layer_3_size, 0, 0);
+    ID3D11DeviceContext_DrawInstanced(g_ctx, 36, xx neuron_vertex_instances.count, 0, 0);
 
     // Draw wires
     ID3D11DeviceContext_VSSetShader(g_ctx, g_vs, null, 0);
@@ -427,7 +407,7 @@ render :: () {
     ID3D11DeviceContext_IASetInputLayout(g_ctx, g_il);
     ID3D11DeviceContext_IASetVertexBuffers(g_ctx, 0, 1, *g_vb_wire_inst, *stride, *offset);
     ID3D11DeviceContext_IASetPrimitiveTopology(g_ctx, D3D11_PRIMITIVE_TOPOLOGY.LINELIST);
-    ID3D11DeviceContext_Draw(g_ctx, wire_instance_data.count, 0);
+    ID3D11DeviceContext_Draw(g_ctx, xx wire_vertex_data.count, 0);
 
     hr := IDXGISwapChain_Present(g_swap_chain, 1, 0);
     if FAILED(hr) {
